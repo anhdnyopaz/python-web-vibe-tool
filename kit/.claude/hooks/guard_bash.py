@@ -31,6 +31,56 @@ SAFE_RM_TARGETS = {"node_modules", ".next", "__pycache__", ".pytest_cache", ".ru
                    "playwright-report", "coverage", "htmlcov", "dist", "build", ".turbo"}
 COMMIT = re.compile(r"\bgit\s+(-C\s+\S+\s+)?commit\b")
 
+# Ghi file code bằng shell sẽ lách hook require_tests/require_design (chỉ bắt Write/Edit).
+SOURCE_EXTENSIONS = {".py", ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".css"}
+HEREDOC = re.compile(r"<<-?\s*(['\"]?)(\w+)\1")
+TARGET = r"""('[^']*'|"[^"]*"|[^\s;&|<>()]+)"""
+REDIRECT = re.compile(r"(?:^|[^<>&\d])\d?>{1,2}\|?\s*" + TARGET)
+TEE = re.compile(r"\btee\s+(?:-\w+\s+)*" + TARGET)
+IN_PLACE = re.compile(r"\b(?:sed|perl)\b[^;&|]*?\s(?:-[a-zA-Z]*i\b|--in-place)([^;&|]*)")
+COPY = re.compile(r"\bcp\s+([^;&|]+)")
+
+
+def strip_heredoc_bodies(command: str) -> str:
+    """Bỏ nội dung heredoc để không nhầm dấu '>' trong code là lệnh ghi file."""
+    lines, kept, delimiter = command.split("\n"), [], None
+    for line in lines:
+        if delimiter is not None:
+            if line.strip() == delimiter:
+                delimiter = None
+            continue
+        kept.append(line)
+        match = HEREDOC.search(line)
+        if match:
+            delimiter = match.group(2)
+    return "\n".join(kept)
+
+
+def shell_write_targets(command: str) -> list[str]:
+    command = strip_heredoc_bodies(command)
+    targets = [m.group(1) for m in REDIRECT.finditer(command)]
+    targets += [m.group(1) for m in TEE.finditer(command)]
+    for match in IN_PLACE.finditer(command):
+        targets += match.group(1).split()
+    for match in COPY.finditer(command):
+        words = match.group(1).split()
+        if len(words) >= 2:
+            targets.append(words[-1])
+    return [t.strip("'\"") for t in targets]
+
+
+def protected_source(target: str, root: Path) -> bool:
+    if Path(target).suffix not in SOURCE_EXTENSIONS or target.startswith("~"):
+        return False
+    path = Path(target)
+    if not path.is_absolute():
+        return True
+    try:
+        path.resolve().relative_to(root)
+        return True
+    except ValueError:
+        return False  # file tạm ngoài dự án, ví dụ /tmp/shot.ts
+
 
 def rm_is_safe(arguments: str) -> bool:
     try:
@@ -65,6 +115,11 @@ def main() -> int:
         if reason:
             pre_tool_decision("deny", f"Chặn commit: {reason}")
             return 0
+    written = [t for t in shell_write_targets(command) if protected_source(t, project_dir(data))]
+    if written:
+        pre_tool_decision("deny", f"Không ghi file code bằng shell ({', '.join(written)}). "
+                                  "Dùng công cụ Write/Edit để hook kiểm tra unit test và thiết kế chạy được.")
+        return 0
     for pattern, reason in DANGEROUS:
         if re.search(pattern, command):
             pre_tool_decision("ask", f"⚠️ {reason} Chỉ đồng ý nếu bạn chắc chắn.")

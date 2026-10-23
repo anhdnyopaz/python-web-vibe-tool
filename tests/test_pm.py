@@ -228,6 +228,63 @@ class VerifyAndSubmitTests(PMTestCase):
         self.ok("check-fresh")
 
 
+class FinishAndContextTests(PMTestCase):
+    def git(self, *argv: str) -> str:
+        return subprocess.run(["git", *argv], cwd=self.root, check=True, capture_output=True,
+                              text=True).stdout.strip()
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.git("init", "-q", "-b", "main")
+        self.git("config", "user.email", "t@example.com")
+        self.git("config", "user.name", "Test")
+        self.git("add", "-A")
+        self.git("commit", "-q", "-m", "chore: init")
+
+    def start_on_branch(self) -> str:
+        task_id = self.add_ready_task()
+        self.ok("start", task_id)
+        self.git("switch", "-q", "-c", self.board()["tasks"][0]["branch"])
+        (self.root / "backend/app.py").write_text("print('v2')\n")
+        self.ok("ac", task_id, "1")
+        self.ok("verify")
+        return task_id
+
+    def test_finish_submits_commits_merges_and_deletes_branch(self) -> None:
+        task_id = self.start_on_branch()
+        branch = self.board()["tasks"][0]["branch"]
+        self.ok("finish", task_id, "-m", f"feat({task_id}): add sign up")
+        self.assertEqual(self.board()["tasks"][0]["status"], "done")
+        self.assertEqual(self.git("rev-parse", "--abbrev-ref", "HEAD"), "main")
+        self.assertEqual(self.git("log", "-1", "--format=%s"), f"Merge {task_id}: add sign up")
+        self.assertEqual(self.git("status", "--porcelain"), "")
+        self.assertEqual(self.git("branch", "--list", branch), "")
+
+    def test_finish_validates_message_branch_and_freshness(self) -> None:
+        task_id = self.start_on_branch()
+        self.assertIn("Commit message", self.fail("finish", task_id, "-m", "add sign up"))
+        self.assertIn("Commit message", self.fail("finish", task_id, "-m", "feat(T-999): x"))
+        (self.root / "backend/app.py").write_text("print('v3')\n")
+        self.assertIn("verify", self.fail("finish", task_id, "-m", f"feat({task_id}): x"))
+        self.assertEqual(self.board()["tasks"][0]["status"], "doing")
+        self.git("switch", "-q", "main")
+        self.assertIn("nhánh của task", self.fail("finish", task_id, "-m", f"feat({task_id}): x"))
+
+    def test_context_summarizes_task_decisions_and_code_map(self) -> None:
+        task_id = self.add_ready_task("Đăng ký", "--api")
+        self.ok("ask", "Cho đặt trước tối đa mấy ngày? Đề xuất: 14 ngày.")
+        self.ok("answer", "Q-001", "Đồng ý.")
+        (self.root / "backend/app/modules/order").mkdir(parents=True)
+        (self.root / "backend/app/modules/order/service.py").write_text("x = 1\n")
+        (self.root / "frontend/src/app/orders").mkdir(parents=True)
+        (self.root / "frontend/src/app/orders/page.tsx").write_text("x\n")
+        out = self.ok("context")
+        self.assertIn(f"{task_id} · Đăng ký", out)
+        self.assertIn("Q-001: Cho đặt trước tối đa mấy ngày? Đề xuất: 14 ngày. → Đồng ý.", out)
+        self.assertIn("Module backend: order", out)
+        self.assertIn("Trang: /orders", out)
+
+
 class InboxQuestionTests(PMTestCase):
     def test_request_inbox_and_add_from_request(self) -> None:
         self.ok("request", "feature", "Lọc đơn theo ngày")

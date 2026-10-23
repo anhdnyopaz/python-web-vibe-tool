@@ -54,6 +54,7 @@ BRANCH_PREFIX = {"feature": "feat", "bug": "fix", "chore": "chore"}
 PRIORITIES = ("P0", "P1", "P2", "P3")
 REQUEST_KINDS = ("feature", "bug")
 DEPLOY_RESULTS = ("success", "failed", "rolled_back")
+COMMIT_MESSAGE = re.compile(r"^(feat|fix|chore|refactor|test|docs|perf)\((T-\d+)\): (\S.*)$")
 
 DEFAULT_CONFIG: dict[str, Any] = {
     "wip_limit": 1,
@@ -598,6 +599,100 @@ def cmd_submit(store: Store, args: argparse.Namespace) -> str:
     return message
 
 
+def run_git(store: Store, *argv: str) -> str:
+    result = subprocess.run(["git", *argv], cwd=store.root, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise PMError(f"git {' '.join(argv)} lỗi: {(result.stderr or result.stdout).strip()}")
+    return result.stdout.strip()
+
+
+def cmd_finish(store: Store, args: argparse.Namespace) -> str:
+    """submit + commit + merge --no-ff vào nhánh chính + xoá nhánh task, gộp trong một lệnh."""
+    board = store.load_board()
+    task = find_task(board, args.id)
+    match = COMMIT_MESSAGE.match(args.message)
+    if not match or match.group(2) != task["id"]:
+        raise PMError(f'Commit message phải có dạng "feat({task["id"]}): <mô tả tiếng Anh>" '
+                      "(feat|fix|chore|refactor|test|docs|perf)")
+    branch = task.get("branch")
+    current = run_git(store, "rev-parse", "--abbrev-ref", "HEAD")
+    if not branch or current != branch:
+        raise PMError(f"Phải đứng trên nhánh của task ({branch or 'chưa có'}), hiện đang ở {current}")
+    main_branch = store.load_config().get("main_branch", "main")
+    # Chạy lại sau khi bước git lỗi giữa chừng: task đã nộp thì không nộp lại.
+    lines = [cmd_submit(store, args)] if task["status"] == "doing" else []
+    run_git(store, "add", "-A")
+    run_git(store, "commit", "-q", "-m", args.message)
+    run_git(store, "switch", "-q", main_branch)
+    run_git(store, "merge", "-q", "--no-ff", branch, "-m", f"Merge {task['id']}: {match.group(3)}")
+    run_git(store, "branch", "-d", branch)
+    lines.append(f"Đã commit, merge vào {main_branch} và xoá nhánh {branch}.")
+    return "\n".join(lines)
+
+
+CODE_MAP = [
+    ("Module backend", re.compile(r"^backend/app/modules/(\w+)/")),
+    ("Usecase", re.compile(r"^backend/app/usecases/(\w+/(?!interfaces|mappers|__init__)\w+)\.py$")),
+    ("Controller", re.compile(r"^backend/app/controllers/(\w+)_controller\.py$")),
+    ("Migration", re.compile(r"^backend/migrations/versions/(\w+)\.py$")),
+    ("Feature frontend", re.compile(r"^frontend/src/features/([\w-]+)/")),
+    ("Trang", re.compile(r"^frontend/src/app/(?:(.+)/)?page\.tsx$")),
+    ("API client", re.compile(r"^frontend/src/services/api/([\w-]+)\.ts$")),
+    ("Hurl", re.compile(r"^tests/api/([\w-]+)\.hurl$")),
+    ("Playwright", re.compile(r"^tests/e2e/specs/([\w-]+)\.spec\.ts$")),
+]
+
+
+def code_map(store: Store, config: dict[str, Any]) -> list[str]:
+    found: dict[str, set[str]] = {label: set() for label, _ in CODE_MAP}
+    for path in source_files(store.root, config):
+        relative = path.relative_to(store.root).as_posix()
+        for label, pattern in CODE_MAP:
+            match = pattern.match(relative)
+            if match and not relative.endswith((".test.ts", ".test.tsx")):
+                found[label].add("/" + (match.group(1) or "") if label == "Trang" else match.group(1))
+    return [f"  {label}: {', '.join(sorted(names))}" for label, names in found.items() if names]
+
+
+def cmd_context(store: Store, args: argparse.Namespace) -> str:
+    """Mọi thứ cần biết để bắt đầu một task, gọn trong một lần đọc."""
+    board = store.load_board()
+    config = store.load_config()
+    if args.id:
+        task = find_task(board, args.id)
+    else:
+        doing = [t for t in board["tasks"] if t["status"] == "doing"]
+        ready = sorted((t for t in board["tasks"] if t["status"] == "todo" and deps_done(board, t)),
+                       key=priority_key)
+        task = (doing or ready or [None])[0]
+    lines = [f"Dự án: {board['project']['name']}"]
+    lines += [describe_task(task)] if task else ["Không có task nào để làm."]
+    done = [t for t in board["tasks"] if t["status"] == "done"][-3:]
+    if done:
+        lines.append("Vừa xong: " + "; ".join(f"{t['id']} {t['title']}" for t in done))
+    answered = [q for q in board["questions"] if q.get("answer")]
+    if answered:
+        lines.append("Quyết định của PO (đã trả lời):")
+        lines += [f"  {q['id']}: {q['text']} → {q['answer']}" for q in answered]
+    waiting = [q["id"] for q in board["questions"] if q["status"] == "open"]
+    if waiting:
+        lines.append(f"Câu hỏi đang chờ PO: {', '.join(waiting)} (xem pm questions)")
+    decisions = sorted((store.root / DECISIONS_DIR).glob("[0-9][0-9][0-9][0-9]-*.md"))
+    if decisions:
+        lines.append("ADR: " + "; ".join(
+            p.read_text(encoding="utf-8").splitlines()[0].lstrip("# ") for p in decisions))
+    docs = [name for name in ("docs/PRD.md", "docs/ARCHITECTURE.md", "docs/DESIGN.md")
+            if (store.root / name).exists()]
+    if docs:
+        lines.append(f"Tài liệu: {', '.join(docs)}")
+    mapped = code_map(store, config)
+    if mapped:
+        lines += ["Bản đồ code:", *mapped]
+    lines.append("Pattern code đã có trong skill hexagonal-backend / frontend-rules: "
+                 "chỉ mở file sắp sửa hoặc liên quan trực tiếp, không đọc lại module mẫu.")
+    return "\n".join(lines)
+
+
 def cmd_accept(store: Store, args: argparse.Namespace) -> str:
     board = store.load_board()
     task = find_task(board, args.id)
@@ -1022,6 +1117,15 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("id", nargs="?")
     p.add_argument("--all", action="store_true", help="Chạy mọi gate cho toàn dự án")
     p.set_defaults(func=cmd_verify)
+
+    p = sub.add_parser("finish", help="Nộp task + commit + merge vào main + xoá nhánh")
+    p.add_argument("id")
+    p.add_argument("-m", "--message", required=True, help='Ví dụ: "feat(T-001): add booking API"')
+    p.set_defaults(func=cmd_finish)
+
+    p = sub.add_parser("context", help="Tóm tắt mọi thứ cần để bắt đầu task (mặc định: task đang/sắp làm)")
+    p.add_argument("id", nargs="?")
+    p.set_defaults(func=cmd_context)
 
     p = sub.add_parser("next", help="Gợi ý task tiếp theo")
     p.set_defaults(func=cmd_next)

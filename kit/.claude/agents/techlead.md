@@ -35,6 +35,7 @@ Bạn không nói chuyện trực tiếp với PO. Bạn làm việc, rồi tr�
 ```bash
 PM="python3 .claude/tools/pm.py"
 $PM status | next | list [--all] | show T-001
+$PM context [T-001]        # task + AC + quyết định PO + ADR + bản đồ code — đọc cái này thay vì cat hàng loạt file
 $PM add "Tiêu đề" --type feature|bug|chore --priority P0..P3 --milestone M1 \
     --ac "Given … When … Then …" --ac "…" [--api] [--ui] [--after T-001] [--from R-001] [--desc "…"]
 $PM edit T-001 [--ac "AC mới"] [--api/--no-api] [--ui/--no-ui] [--priority P1] …
@@ -42,6 +43,7 @@ $PM start T-001            # chuyển sang Đang làm, in tên branch
 $PM ac T-001 1 --evidence "backend/tests/unit/…::test_x"   # AC #1 đã có test chứng minh
 $PM verify                 # chạy lint + unit (+ Hurl nếu --api, + Playwright nếu --ui) cho task đang làm
 $PM submit T-001           # chỉ qua khi mọi AC đạt và verify đạt SAU lần sửa code cuối
+$PM finish T-001 -m "feat(T-001): add booking API"   # submit + commit + merge --no-ff vào main + xoá nhánh
 $PM note T-001 "…" | block T-001 "lý do" | unblock T-001
 $PM inbox | triage R-001 --tasks T-004,T-005    # yêu cầu PO gửi từ dashboard
 $PM ask "Câu hỏi cho PO?" --task T-001 | questions --all   # câu hỏi và câu trả lời của PO
@@ -50,6 +52,13 @@ $PM release v0.2.0 | deploy-log … | link <tên> <url>
 ```
 
 Gate chạy lâu (Docker). Khi gọi `verify`, đặt timeout Bash 600000ms. Đọc log lỗi đầy đủ ở `.pm/logs/<gate>.log`.
+
+# Làm việc tiết kiệm (mỗi lượt gọi tốn ~10 giây và đọc lại toàn bộ ngữ cảnh)
+
+- **Tạo/sửa file code bằng Write/Edit**, không dùng `cat > file`, `tee`, `sed -i` (hook chặn: ghi bằng shell sẽ lách kiểm tra unit test và thiết kế).
+- **Đừng "làm quen lại" dự án:** `pm context` đã có task, quyết định của PO, ADR và bản đồ code; pattern code nằm trong skill đã nạp. Chỉ mở file sắp sửa hoặc liên quan trực tiếp, đọc một lần.
+- Gộp các lệnh chỉ-đọc độc lập vào một lần gọi Bash. Không chạy lại lệnh đã có kết quả.
+- **Ảnh chụp màn hình** (tự kiểm tra UI): chỉ chụp phần đang hiển thị (không full page), mobile 390px trước, tối đa 3 ảnh mỗi task, chụp khi UI đã gần xong. Không đọc lại ảnh đã xem. Đo tràn ngang bằng script (`scrollWidth - innerWidth`) thay vì nhìn ảnh.
 
 # Quy trình theo chế độ (luồng chính sẽ nói chế độ nào)
 
@@ -65,8 +74,8 @@ Gate chạy lâu (Docker). Khi gọi `verify`, đặt timeout Bash 600000ms. Đ�
 Làm đúng theo skill `project-scaffold`: đọc `.claude/skills/project-scaffold/SKILL.md`.
 
 ## BUILD — làm một task
-1. `pm next`, rồi `pm start T-xxx`, rồi `git switch -c <branch>` (từ `main` mới nhất).
-2. Đọc các câu trả lời của PO liên quan (`pm questions --all`).
+1. `pm context` (task tiếp theo, quyết định của PO, bản đồ code), rồi `pm start T-xxx && git switch -c <branch>` (từ `main` mới nhất).
+2. Mở đúng những file cần sửa. Không đọc lại module mẫu để học pattern.
 3. Backend: đi **từ trong ra ngoài**, mỗi bước viết test trước:
    1. entity
    2. interfaces
@@ -86,9 +95,8 @@ Làm đúng theo skill `project-scaffold`: đọc `.claude/skills/project-scaffo
 5. Chạy test nhanh trong lúc làm (`make test-unit-be`, `make test-unit-fe`), rồi `pm verify`. Lặp lại đến khi đạt.
 6. Khi có test chứng minh một AC: `pm ac T-xxx N --evidence "<test>"`.
 7. **Tự review** theo checklist bên dưới. Phải sửa gì thì sửa, rồi `pm verify` lại.
-8. `pm submit T-xxx`, rồi `git add -A && git commit -m "feat(T-xxx): …"` (commit gồm code, `.pm/`, `docs/`). Hook sẽ chặn commit nếu code chưa verify.
-9. `git switch main && git merge --no-ff <branch> -m "Merge T-xxx: …" && git branch -d <branch>`.
-10. Nếu `make up` đang chạy, đảm bảo bản mới đang chạy (`make up` lại nếu đổi Dockerfile/thư viện) để PO thử được ngay.
+8. `pm finish T-xxx -m "feat(T-xxx): …"`: nộp task, commit toàn bộ (code, `.pm/`, `docs/`), merge `--no-ff` vào `main`, xoá nhánh. Lệnh từ chối nếu AC chưa đạt hoặc code đổi sau lần verify cuối.
+9. Nếu `make up` đang chạy, đảm bảo bản mới đang chạy (`make up` lại nếu đổi Dockerfile/thư viện) để PO thử được ngay.
 
 ## BUGFIX — sửa lỗi
 1. Tạo task `--type bug` (thường P0/P1) từ mô tả lỗi, với AC "lỗi không còn xảy ra".

@@ -88,6 +88,7 @@ Bước nghiệm thu bởi PO là **tuỳ chọn**. Bật bằng `"require_accep
 | Kiến trúc Hexagonal | `import-linter` với 5 hợp đồng phụ thuộc, cộng test kiến trúc (mỗi module có `IxxxService`/`IxxxRepository`, mọi usecase kế thừa interface) |
 | Kiến trúc frontend | Test kiến trúc: component chỉ dùng interface qua `useApi()`, không gọi `fetch` trực tiếp |
 | Thiết kế qua skill frontend-design | Hook `require_design.py` từ chối sửa `.tsx`/`.css` nếu skill chưa được nạp trong phiên (đọc cả transcript của sub agent) |
+| Không lách hook | `guard_bash.py` chặn ghi file code bằng shell (`cat >`, `tee`, `sed -i`, `cp`), buộc dùng Write/Edit để 2 hook trên luôn chạy |
 | An toàn dữ liệu | `docker compose down -v`, `rm -rf`, `git push --force`, `git reset --hard`, `DROP TABLE`… đều phải được bạn xác nhận, kể cả khi chạy qua `ssh` |
 | Mỗi lúc một việc | `pm start` giới hạn 1 task đang làm (WIP limit) và kiểm tra thứ tự phụ thuộc |
 
@@ -136,7 +137,7 @@ tests/                     Unit test của pm.py và các hook
 ## Phát triển kit
 
 ```bash
-python3 -m unittest discover -s tests -v      # 46 test cho pm.py và hook (Python 3.9+)
+python3 -m unittest discover -s tests -v      # 51 test cho pm.py và hook (Python 3.9+)
 ```
 
 Mẫu dự án (`kit/.claude/skills/project-scaffold/reference/`) được kiểm chứng bằng cách chạy `make up` rồi `pm verify --all`. Mọi gate phải đạt.

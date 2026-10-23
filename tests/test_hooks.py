@@ -58,6 +58,26 @@ class GuardBashTests(HookTestCase):
             with self.subTest(command=command):
                 self.assertIsNone(self.bash(command))
 
+    def test_shell_writes_to_source_files_denied(self) -> None:
+        for command in ("cd backend && cat > app/modules/order/service.py <<'EOF'\nx = 1\nEOF",
+                        "cat >> frontend/src/features/x/Card.tsx <<EOF\n<div/>\nEOF",
+                        "echo 'a' | tee -a frontend/src/app/globals.css",
+                        "sed -i '' 's/a/b/' backend/app/main.py",
+                        "perl -pi -e 's/a/b/' frontend/src/x.ts",
+                        "cp /tmp/Card.tsx frontend/src/features/x/Card.tsx",
+                        f"printf 'x' > {self.root}/backend/app/x.py"):
+            with self.subTest(command=command):
+                self.assertEqual(self.bash(command), "deny")
+
+    def test_shell_writes_elsewhere_allowed(self) -> None:
+        for command in ("cat > /tmp/shot.ts <<'EOF'\nif (a > b.py) {}\nEOF",
+                        "make test-unit 2>&1 | tail -20", "echo 'X=1' >> .env",
+                        "python3 .claude/tools/pm.py verify > /dev/null 2>&1",
+                        "sed -n 1,40p backend/app/main.py", "git mv a.py b.py",
+                        "cp -R .claude/skills/project-scaffold/reference/. ."):
+            with self.subTest(command=command):
+                self.assertIsNone(self.bash(command))
+
     def test_commit_denied_until_verified(self) -> None:
         env = {**os.environ, "PM_ROOT": str(self.root)}
         pm = [sys.executable, str(self.root / ".claude/tools/pm.py")]
