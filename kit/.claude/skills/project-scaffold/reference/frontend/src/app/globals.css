@@ -1,0 +1,32 @@
+@import "tailwindcss";
+
+/* Design tokens — đổi nhận diện thương hiệu của dự án ở ĐÂY (theo design plan từ skill frontend-design). */
+@theme {
+  --color-fog: #f3f5f7;
+  --color-paper: #ffffff;
+  --color-ink: #16202b;
+  --color-muted: #5f6b7a;
+  --color-line: #dce1e7;
+  --color-brand: #0e7c86;
+  --color-brand-ink: #ffffff;
+  --color-ok: #1f8a5b;
+  --color-down: #c2412d;
+  --font-sans: var(--font-be-vietnam), ui-sans-serif, system-ui, sans-serif;
+  --radius-card: 14px;
+}
+
+@layer base {
+  body {
+    @apply bg-fog text-ink antialiased;
+  }
+  :focus-visible {
+    @apply outline-3 outline-offset-2 outline-brand;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

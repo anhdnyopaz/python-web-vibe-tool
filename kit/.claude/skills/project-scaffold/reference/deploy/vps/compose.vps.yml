@@ -1,0 +1,14 @@
+# Ghép thêm khi chạy trên VPS: nối Traefik vào mạng "proxy" của Nginx Proxy Manager.
+# Trong NPM, Forward Hostname = ${APP_SLUG}-gateway, Forward Port = 80.
+services:
+  traefik:
+    networks:
+      default:
+      proxy:
+        aliases:
+          - ${APP_SLUG}-gateway
+
+networks:
+  proxy:
+    external: true
+    name: proxy

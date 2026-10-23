@@ -1,0 +1,128 @@
+# Môi trường DEV — mở ứng dụng tại http://localhost:${APP_PORT:-8080}
+# Traefik là cổng duy nhất: /api/* -> backend (FastAPI), còn lại -> frontend (Next.js)
+name: ${COMPOSE_PROJECT_NAME:-app}
+
+services:
+  traefik:
+    image: traefik:v3.7
+    command:
+      - --entrypoints.web.address=:80
+      - --providers.file.filename=/etc/traefik/dynamic.yml
+      - --providers.file.watch=true
+      - --api.dashboard=true
+      - --api.insecure=true # dashboard chỉ bật ở dev: http://localhost:${TRAEFIK_DASHBOARD_PORT:-8090}
+      - --log.level=WARN
+    ports:
+      - "${APP_PORT:-8080}:80"
+      - "${TRAEFIK_DASHBOARD_PORT:-8090}:8080"
+    volumes:
+      - ./traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
+
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: app
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d app"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:8-alpine
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  backend:
+    build:
+      context: ./backend
+      target: dev
+    environment:
+      DATABASE_URL: postgresql+psycopg://app:app@db:5432/app
+      TEST_DATABASE_URL: postgresql+psycopg://app:app@db:5432/app_test
+      REDIS_URL: redis://redis:6379/0
+      ENVIRONMENT: development
+    volumes:
+      - ./backend:/app
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+
+  frontend:
+    build:
+      context: ./frontend
+      target: dev
+    environment:
+      NEXT_TELEMETRY_DISABLED: "1"
+    volumes:
+      - ./frontend:/app
+      - frontend_node_modules:/app/node_modules
+      - frontend_next:/app/.next
+    healthcheck:
+      test: ["CMD", "bun", "-e", "fetch('http://localhost:3000').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 5s
+      timeout: 30s
+      retries: 30
+      start_period: 15s
+
+  # ---------- profile "test": chỉ chạy khi gọi make test-api / make test-e2e ----------
+  hurl:
+    image: ghcr.io/orange-opensource/hurl:8.0.1
+    profiles: ["test"]
+    volumes:
+      - ./tests/api:/tests:ro
+    command: ["--test", "--color", "--variable", "base_url=http://traefik", "/tests"]
+
+  e2e:
+    build: ./tests/e2e
+    profiles: ["test"]
+    ipc: host
+    environment:
+      BASE_URL: http://traefik
+      CI: "1"
+    volumes:
+      - ./tests/e2e:/e2e
+      - e2e_node_modules:/e2e/node_modules
+
+  # ---------- profile "share": link xem online khi đang dev ở máy ----------
+  tunnel:
+    image: cloudflare/cloudflared:2026.10.3
+    profiles: ["share"]
+    command: ["tunnel", "--no-autoupdate", "--url", "http://traefik:80"]
+
+  ngrok:
+    image: ngrok/ngrok:3
+    profiles: ["share-ngrok"]
+    environment:
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:-}
+    command: ["http", "traefik:80", "--url=${NGROK_DOMAIN:-}", "--log=stdout"]
+
+volumes:
+  pgdata:
+  redisdata:
+  frontend_node_modules:
+  frontend_next:
+  e2e_node_modules:

@@ -1,0 +1,6 @@
+[test]
+preload = ["./test/happydom.ts", "./test/testing-library.ts"]
+coverageSkipTestFiles = true
+# Unit test là bắt buộc: dưới ngưỡng này `bun test --coverage` sẽ FAIL.
+coverageThreshold = { lines = 0.7, functions = 0.7 }
+coveragePathIgnorePatterns = ["src/app/**", "test/**"]

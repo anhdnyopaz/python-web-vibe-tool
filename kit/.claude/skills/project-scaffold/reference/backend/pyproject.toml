@@ -1,0 +1,38 @@
+[project]
+name = "backend"
+version = "0.1.0"
+requires-python = ">=3.12"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+markers = ["integration: cần Postgres/Redis thật (chạy bằng make test-integration)"]
+filterwarnings = ["error::DeprecationWarning:app.*"]
+
+[tool.coverage.run]
+source = ["app"]
+# Adapter hạ tầng được kiểm bằng integration test + Hurl, không tính vào unit coverage.
+omit = [
+    "app/main.py",
+    "app/container.py",
+    "app/core/database.py",
+    "app/core/cache.py",
+    "app/modules/*/repository.py",
+    "app/shared/redis_cache.py",
+    "app/shared/sql_database_health.py",
+]
+
+[tool.coverage.report]
+fail_under = 80
+show_missing = true
+skip_covered = true
+exclude_also = ["raise NotImplementedError", "if TYPE_CHECKING:", "@abstractmethod"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = ["migrations/versions"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "N", "SIM", "RUF"]
+ignore = ["B008"]  # FastAPI Depends() trong tham số mặc định là chuẩn của framework

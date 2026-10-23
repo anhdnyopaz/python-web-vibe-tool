@@ -1,0 +1,37 @@
+# Cấu hình API Gateway (Traefik) — dùng chung cho dev và production.
+http:
+  routers:
+    api:
+      rule: "PathPrefix(`/api`)"
+      entryPoints: [web]
+      service: backend
+      middlewares: [api-rate-limit, security-headers]
+      priority: 100
+    web:
+      rule: "PathPrefix(`/`)"
+      entryPoints: [web]
+      service: frontend
+      middlewares: [security-headers]
+      priority: 1
+
+  services:
+    backend:
+      loadBalancer:
+        servers:
+          - url: "http://backend:8000"
+    frontend:
+      loadBalancer:
+        servers:
+          - url: "http://frontend:3000"
+
+  middlewares:
+    api-rate-limit:
+      rateLimit:
+        average: 50
+        burst: 100
+    security-headers:
+      headers:
+        frameDeny: true
+        contentTypeNosniff: true
+        browserXssFilter: true
+        referrerPolicy: "strict-origin-when-cross-origin"

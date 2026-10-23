@@ -1,0 +1,429 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bảng điều hành dự án</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --fog: #e9edf2;
+    --paper: #ffffff;
+    --ink: #1d2a3a;
+    --ink-soft: #5a6878;
+    --line: #d3dae3;
+    --signal: #f2c230;
+    --signal-ink: #3a2c00;
+    --go: #2e8b57;
+    --stop: #c2412d;
+    --focus: #2f5fd0;
+    --radius-lg: 14px;
+    --radius-sm: 8px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --fog: #141b24; --paper: #1d2733; --ink: #e8edf3; --ink-soft: #9aa8b8; --line: #2e3a48;
+      --signal: #f2c230; --signal-ink: #2a2000; --go: #4fb97f; --stop: #e8735f; --focus: #8fb0ff;
+    }
+  }
+  :root[data-theme="dark"] {
+    --fog: #141b24; --paper: #1d2733; --ink: #e8edf3; --ink-soft: #9aa8b8; --line: #2e3a48;
+    --signal: #f2c230; --signal-ink: #2a2000; --go: #4fb97f; --stop: #e8735f; --focus: #8fb0ff;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--fog); color: var(--ink);
+    font: 400 15px/1.55 "Be Vietnam Pro", system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+  button, input, textarea, select { font: inherit; color: inherit; }
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 28px 24px 64px; }
+
+  /* Đầu trang: tên dự án + tiến độ */
+  header.top { display: flex; flex-wrap: wrap; align-items: end; gap: 12px 32px; margin-bottom: 24px; }
+  header.top h1 { margin: 0; font-size: 32px; line-height: 1.15; font-weight: 800; letter-spacing: -0.02em; }
+  .progress { flex: 1 1 280px; max-width: 460px; }
+  .progress-label { font-size: 14px; color: var(--ink-soft); margin-bottom: 6px; }
+  .progress-label strong { color: var(--ink); font-weight: 700; }
+  .bar { height: 10px; border-radius: 99px; background: var(--line); overflow: hidden; }
+  .bar > span { display: block; height: 100%; background: var(--go); border-radius: 99px; transition: width .6s ease; }
+  .updated { font-size: 13px; color: var(--ink-soft); margin-left: auto; }
+
+  /* Dải "Việc cần bạn" — điểm nhấn duy nhất của trang */
+  .attention {
+    background: var(--signal); color: var(--signal-ink);
+    border-radius: var(--radius-lg); padding: 20px 22px; margin-bottom: 28px;
+  }
+  .attention h2 { margin: 0 0 12px; font-size: 20px; font-weight: 800; }
+  .attention.calm { background: transparent; color: var(--ink-soft); border: 1.5px dashed var(--line); padding: 14px 18px; }
+  .attention.calm h2 { font-size: 16px; font-weight: 600; margin: 0; }
+  .todo-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+  .todo-item {
+    background: rgba(255,255,255,.55); border-radius: var(--radius-sm); padding: 12px 14px;
+    display: grid; gap: 8px;
+  }
+  .todo-item p { margin: 0; font-weight: 600; }
+  .todo-item small { font-weight: 500; opacity: .8; }
+  .todo-item form { display: flex; gap: 8px; flex-wrap: wrap; }
+  .todo-item input { flex: 1 1 240px; min-width: 0; padding: 9px 12px; border-radius: var(--radius-sm); border: 1px solid rgba(0,0,0,.25); background: #fff; color: #1d2a3a; }
+
+  .btn {
+    border: 0; border-radius: var(--radius-sm); padding: 9px 16px; font-weight: 600; cursor: pointer;
+    background: var(--ink); color: var(--paper);
+  }
+  .btn.ghost { background: transparent; color: inherit; box-shadow: inset 0 0 0 1.5px currentColor; }
+  .btn.go { background: var(--go); color: #fff; }
+  .btn:disabled { opacity: .5; cursor: progress; }
+
+  /* Bố cục chính */
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 28px; align-items: start; }
+  @media (max-width: 1000px) { .layout { grid-template-columns: 1fr; } }
+
+  .board { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 16px; }
+  .column h3 { margin: 0 0 10px; font-size: 15px; font-weight: 700; display: flex; justify-content: space-between; }
+  .column h3 span { color: var(--ink-soft); font-weight: 500; }
+  .column.blocked h3 { color: var(--stop); }
+  .cards { display: grid; gap: 10px; }
+  .card {
+    text-align: left; width: 100%; cursor: pointer; background: var(--paper); border: 1px solid var(--line);
+    border-radius: var(--radius-sm); padding: 12px 14px; display: grid; gap: 6px;
+  }
+  .card:hover { border-color: var(--ink-soft); }
+  .card .title { font-weight: 600; line-height: 1.35; }
+  .card .meta { font-size: 13px; color: var(--ink-soft); display: flex; gap: 10px; flex-wrap: wrap; }
+  .card .reason { font-size: 13px; color: var(--stop); }
+  .column.doing .card { border-left: 4px solid var(--focus); }
+  .column.blocked .card { border-left: 4px solid var(--stop); }
+  .empty { font-size: 14px; color: var(--ink-soft); padding: 10px 2px; }
+
+  aside { display: grid; gap: 22px; }
+  .panel { background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 18px; }
+  .panel h2 { margin: 0 0 12px; font-size: 17px; font-weight: 700; }
+  .panel p.hint { margin: -6px 0 12px; font-size: 13px; color: var(--ink-soft); }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: var(--radius-sm); overflow: hidden; margin-bottom: 10px; }
+  .seg label { padding: 6px 12px; cursor: pointer; font-size: 14px; }
+  .seg input { position: absolute; opacity: 0; pointer-events: none; }
+  .seg input:checked + span { font-weight: 700; }
+  .seg label:has(input:checked) { background: var(--ink); color: var(--paper); }
+  .seg label:has(input:focus-visible) { outline: 3px solid var(--focus); outline-offset: -3px; }
+  textarea { width: 100%; min-height: 96px; resize: vertical; padding: 10px 12px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--fog); }
+  .row-end { display: flex; justify-content: flex-end; margin-top: 10px; }
+  .links { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+  .links a { color: var(--focus); font-weight: 600; text-decoration: none; word-break: break-all; }
+  .links a:hover { text-decoration: underline; }
+  .links small { display: block; color: var(--ink-soft); }
+  .commands { display: grid; gap: 8px; }
+  .command { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .command code { font: 600 14px/1 ui-monospace, "SF Mono", Menlo, monospace; }
+  .command span { font-size: 13px; color: var(--ink-soft); flex: 1; }
+  .command button { font-size: 13px; padding: 5px 10px; }
+  table.deploys { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.deploys td { padding: 6px 0; border-top: 1px solid var(--line); }
+  .ok { color: var(--go); font-weight: 600; } .bad { color: var(--stop); font-weight: 600; }
+
+  /* Chi tiết task */
+  dialog { border: 0; border-radius: var(--radius-lg); padding: 0; width: min(640px, calc(100% - 32px)); background: var(--paper); color: var(--ink); }
+  dialog::backdrop { background: rgba(10, 16, 24, .5); }
+  .dlg { padding: 24px; display: grid; gap: 16px; }
+  .dlg h2 { margin: 0; font-size: 22px; line-height: 1.3; }
+  .dlg h3 { margin: 0 0 6px; font-size: 14px; color: var(--ink-soft); font-weight: 600; }
+  .dlg ul { margin: 0; padding-left: 0; list-style: none; display: grid; gap: 6px; }
+  .ac { display: grid; grid-template-columns: 22px 1fr; gap: 6px; }
+  .ac b { color: var(--go); } .ac i { color: var(--ink-soft); font-style: normal; }
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; }
+  .chip { font-size: 13px; padding: 3px 10px; border-radius: 99px; border: 1px solid var(--line); }
+  .chip.pass { border-color: var(--go); color: var(--go); } .chip.fail { border-color: var(--stop); color: var(--stop); }
+  .dlg-actions { display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
+
+  .toast {
+    position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(20px); opacity: 0;
+    background: var(--ink); color: var(--paper); padding: 12px 18px; border-radius: var(--radius-sm);
+    transition: opacity .2s, transform .2s; pointer-events: none; max-width: calc(100% - 32px);
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .offline { color: var(--stop); font-weight: 600; }
+  @media (max-width: 600px) { .wrap { padding: 20px 16px 48px; } header.top h1 { font-size: 26px; } }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1 id="project-name">Đang tải…</h1>
+    <div class="progress">
+      <div class="progress-label" id="progress-label"></div>
+      <div class="bar" role="progressbar" aria-label="Tiến độ dự án" id="progress-bar"><span style="width:0"></span></div>
+    </div>
+    <div class="updated" id="updated" aria-live="polite"></div>
+  </header>
+
+  <section class="attention" id="attention" aria-labelledby="attention-title"></section>
+
+  <div class="layout">
+    <main>
+      <div class="board" id="board"></div>
+    </main>
+    <aside>
+      <section class="panel" aria-labelledby="req-title">
+        <h2 id="req-title">Gửi yêu cầu cho TechLead</h2>
+        <p class="hint">Viết bằng lời thường. TechLead sẽ phân tích ở lần chạy <code>/next</code> hoặc <code>/feature</code> tiếp theo.</p>
+        <form id="request-form">
+          <div class="seg" role="radiogroup" aria-label="Loại yêu cầu">
+            <label><input type="radio" name="kind" value="feature" checked><span>Muốn thêm</span></label>
+            <label><input type="radio" name="kind" value="bug"><span>Báo lỗi</span></label>
+          </div>
+          <textarea id="request-text" name="text" required aria-label="Nội dung yêu cầu" placeholder="Ví dụ: Khách hàng muốn lọc đơn hàng theo ngày"></textarea>
+          <div class="row-end"><button class="btn" type="submit">Gửi yêu cầu</button></div>
+        </form>
+      </section>
+
+      <section class="panel" aria-labelledby="links-title">
+        <h2 id="links-title">Mở ứng dụng</h2>
+        <ul class="links" id="links"></ul>
+      </section>
+
+      <section class="panel" aria-labelledby="cmd-title">
+        <h2 id="cmd-title">Lệnh dán vào Claude Code</h2>
+        <div class="commands" id="commands"></div>
+      </section>
+
+      <section class="panel" aria-labelledby="deploy-title" id="deploy-panel" hidden>
+        <h2 id="deploy-title">Lịch sử deploy</h2>
+        <table class="deploys"><tbody id="deploys"></tbody></table>
+      </section>
+    </aside>
+  </div>
+</div>
+
+<dialog id="task-dialog" aria-labelledby="dlg-title"><div class="dlg" id="dlg-body"></div></dialog>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+const TOKEN = "__PM_TOKEN__";
+const COMMANDS = [
+  ["/next", "Làm việc tiếp theo"],
+  ["/progress", "Báo cáo tiến độ"],
+  ["/feature", "Thêm tính năng"],
+  ["/fix", "Báo lỗi"],
+  ["/preview", "Lấy link xem online"],
+  ["/deploy", "Đưa lên server"],
+];
+const LINK_LABELS = { app: "Ứng dụng (máy bạn)", api_docs: "Tài liệu API", share: "Link chia sẻ online", production: "Bản chạy thật" };
+const COLUMNS = ["todo", "doing", "review", "blocked", "done"];
+let state = null;
+
+const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const when = (iso) => iso ? new Date(iso).toLocaleString("vi-VN", { dateStyle: "short", timeStyle: "short" }) : "";
+
+function toast(message) {
+  const el = document.getElementById("toast");
+  el.textContent = message;
+  el.classList.add("show");
+  clearTimeout(toast.timer);
+  toast.timer = setTimeout(() => el.classList.remove("show"), 3200);
+}
+
+async function post(path, body) {
+  const res = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json", "X-PM-Token": TOKEN }, body: JSON.stringify(body || {}) });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || "Không gửi được, thử lại sau");
+  return data.message;
+}
+
+async function load() {
+  try {
+    const res = await fetch("/api/state", { cache: "no-store" });
+    state = await res.json();
+    render();
+    document.getElementById("updated").textContent = "Cập nhật lúc " + new Date().toLocaleTimeString("vi-VN");
+  } catch {
+    document.getElementById("updated").innerHTML = '<span class="offline">Mất kết nối với pm — kiểm tra lệnh /board còn chạy không</span>';
+  }
+}
+
+function render() {
+  const { project, summary, labels } = state;
+  document.getElementById("project-name").textContent = project.name;
+  document.title = project.name + " — Bảng điều hành";
+  const done = summary.counts.done, total = summary.total;
+  const pct = total ? Math.round(100 * done / total) : 0;
+  document.getElementById("progress-label").innerHTML = total
+    ? `<strong>${done}/${total}</strong> việc đã xong (${pct}%)`
+    : "Chưa có việc nào — chạy <code>/kickoff</code> để lập kế hoạch";
+  const bar = document.getElementById("progress-bar");
+  bar.setAttribute("aria-valuenow", pct);
+  bar.firstElementChild.style.width = pct + "%";
+  renderAttention();
+  renderBoard(labels);
+  renderLinks();
+  renderDeploys();
+}
+
+function renderAttention() {
+  const el = document.getElementById("attention");
+  const questions = state.questions.filter((q) => q.status === "open");
+  const reviews = state.tasks.filter((t) => t.status === "review");
+  const blocked = state.tasks.filter((t) => t.status === "blocked");
+  if (!questions.length && !reviews.length && !blocked.length) {
+    el.className = "attention calm";
+    el.innerHTML = '<h2 id="attention-title">Không có việc nào đang chờ bạn. TechLead cứ tiếp tục với <code>/next</code>.</h2>';
+    return;
+  }
+  el.className = "attention";
+  const items = [
+    ...questions.map((q) => `
+      <li class="todo-item">
+        <p>${esc(q.text)} ${q.task ? `<small>(việc ${esc(q.task)})</small>` : ""}</p>
+        <form data-answer="${esc(q.id)}">
+          <input name="text" required placeholder="Câu trả lời của bạn" aria-label="Trả lời câu hỏi ${esc(q.id)}">
+          <button class="btn" type="submit">Trả lời</button>
+        </form>
+      </li>`),
+    ...reviews.map((t) => `
+      <li class="todo-item">
+        <p>Thử giúp: ${esc(t.title)} <small>(${esc(t.id)})</small></p>
+        <form data-review="${esc(t.id)}">
+          <button class="btn go" type="button" data-accept>Chấp nhận</button>
+          <input name="reason" placeholder="Chưa ổn? Ghi lý do để TechLead sửa" aria-label="Lý do từ chối ${esc(t.id)}">
+          <button class="btn ghost" type="submit">Trả lại</button>
+        </form>
+      </li>`),
+    ...blocked.map((t) => `
+      <li class="todo-item">
+        <p>Bị chặn: ${esc(t.title)} <small>(${esc(t.id)})</small></p>
+        <small>${esc(t.blocked_reason || "")} — trả lời TechLead trong Claude Code để gỡ chặn.</small>
+      </li>`),
+  ];
+  el.innerHTML = `<h2 id="attention-title">Việc cần bạn (${items.length})</h2><ul class="todo-list">${items.join("")}</ul>`;
+}
+
+function renderBoard(labels) {
+  const columns = COLUMNS.filter((s) => s !== "review" || state.require_acceptance || state.tasks.some((t) => t.status === "review"));
+  const rank = { P0: 0, P1: 1, P2: 2, P3: 3 };
+  document.getElementById("board").innerHTML = columns.map((status) => {
+    let tasks = state.tasks.filter((t) => t.status === status);
+    tasks = status === "done"
+      ? tasks.sort((a, b) => (b.done_at || "").localeCompare(a.done_at || "")).slice(0, 12)
+      : tasks.sort((a, b) => rank[a.priority] - rank[b.priority]);
+    const count = state.tasks.filter((t) => t.status === status).length;
+    const cards = tasks.map((t) => {
+      const ac = t.acceptance || [];
+      const met = ac.filter((c) => c.done).length;
+      return `<button class="card" data-task="${esc(t.id)}">
+        <span class="title">${esc(t.title)}</span>
+        <span class="meta"><span>${esc(t.id)}</span><span>${esc(labels.type[t.type])}</span><span>Ưu tiên ${esc(t.priority)}</span>${ac.length ? `<span>Tiêu chí ${met}/${ac.length}</span>` : ""}</span>
+        ${t.status === "blocked" && t.blocked_reason ? `<span class="reason">${esc(t.blocked_reason)}</span>` : ""}
+      </button>`;
+    }).join("");
+    return `<section class="column ${status}" aria-label="${esc(labels.status[status])}">
+      <h3>${esc(labels.status[status])} <span>${count}</span></h3>
+      <div class="cards">${cards || '<div class="empty">Trống</div>'}</div>
+    </section>`;
+  }).join("");
+}
+
+function renderLinks() {
+  const entries = Object.entries(state.links || {});
+  document.getElementById("links").innerHTML = entries.length
+    ? entries.map(([name, url]) => `<li><a href="${esc(url)}" target="_blank" rel="noopener">${esc(url)}</a><small>${esc(LINK_LABELS[name] || name)}</small></li>`).join("")
+    : '<li class="empty">Chưa có link. Chạy <code>/demo</code> để bật ứng dụng.</li>';
+  document.getElementById("commands").innerHTML = COMMANDS.map(([cmd, label]) => `
+    <div class="command"><code>${cmd}</code><span>${label}</span><button class="btn ghost" data-copy="${cmd}">Sao chép</button></div>`).join("");
+}
+
+function renderDeploys() {
+  const panel = document.getElementById("deploy-panel");
+  panel.hidden = !state.deploys.length;
+  const names = { success: ["Thành công", "ok"], failed: ["Thất bại", "bad"], rolled_back: ["Đã quay lại bản cũ", "bad"] };
+  document.getElementById("deploys").innerHTML = state.deploys.slice().reverse().map((d) => {
+    const [label, cls] = names[d.result] || [d.result, ""];
+    return `<tr><td>${esc(d.version)}<br><small>${esc(d.target)}, ${when(d.at)}</small></td><td class="${cls}">${label}</td></tr>`;
+  }).join("");
+}
+
+function openTask(id) {
+  const t = state.tasks.find((task) => task.id === id);
+  if (!t) return;
+  const { labels } = state;
+  const ac = (t.acceptance || []).map((c) => `<li class="ac">${c.done ? "<b>✓</b>" : "<i>○</i>"}<span>${esc(c.text)}</span></li>`).join("");
+  const verify = t.verify ? Object.entries(t.verify.gates).map(([name, r]) => {
+    const human = { lint: "Kiểm tra code", unit: "Unit test", api: "Test API", e2e: "Test giao diện" }[name] || name;
+    return `<span class="chip ${r.passed ? "pass" : "fail"}">${human}: ${r.passed ? "đạt" : "chưa đạt"}</span>`;
+  }).join("") : '<span class="empty">Chưa chạy kiểm tra</span>';
+  const notes = (t.notes || []).slice(-5).reverse().map((n) => `<li>${esc(n.text)} <small>(${when(n.at)})</small></li>`).join("");
+  document.getElementById("dlg-body").innerHTML = `
+    <div><h3>${esc(t.id)}, ${esc(labels.type[t.type])}, ${esc(labels.status[t.status])}</h3><h2 id="dlg-title">${esc(t.title)}</h2></div>
+    ${t.description ? `<p>${esc(t.description)}</p>` : ""}
+    <div><h3>Tiêu chí chấp nhận</h3><ul>${ac || '<li class="empty">Chưa có</li>'}</ul></div>
+    <div><h3>Kết quả kiểm tra</h3><div class="chips">${verify}</div></div>
+    ${notes ? `<div><h3>Ghi chú gần đây</h3><ul>${notes}</ul></div>` : ""}
+    <div class="dlg-actions">
+      ${t.status === "done" ? `<button class="btn ghost" data-report="${esc(t.id)}">Báo lỗi ở việc này</button>` : ""}
+      <button class="btn" data-close>Đóng</button>
+    </div>`;
+  document.getElementById("task-dialog").showModal();
+}
+
+document.addEventListener("click", async (event) => {
+  const target = event.target.closest("button");
+  if (!target) return;
+  if (target.dataset.task) return openTask(target.dataset.task);
+  if (target.hasAttribute("data-close")) return document.getElementById("task-dialog").close();
+  if (target.dataset.copy) {
+    try { await navigator.clipboard.writeText(target.dataset.copy); toast(`Đã sao chép ${target.dataset.copy}`); }
+    catch { toast(`Gõ ${target.dataset.copy} vào Claude Code`); }
+    return;
+  }
+  if (target.dataset.report) {
+    document.getElementById("task-dialog").close();
+    document.querySelector('input[name="kind"][value="bug"]').checked = true;
+    const area = document.getElementById("request-text");
+    area.value = `Việc ${target.dataset.report}: `;
+    area.dataset.task = target.dataset.report;
+    area.focus();
+    return;
+  }
+  if (target.hasAttribute("data-accept")) {
+    const id = target.closest("form").dataset.review;
+    target.disabled = true;
+    try { toast(await post(`/api/tasks/${id}/accept`)); await load(); }
+    catch (error) { toast(error.message); target.disabled = false; }
+  }
+});
+
+document.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.target;
+  const button = form.querySelector('button[type="submit"]');
+  if (button) button.disabled = true;
+  try {
+    if (form.id === "request-form") {
+      const area = form.querySelector("textarea");
+      const kind = form.querySelector('input[name="kind"]:checked').value;
+      toast(await post("/api/requests", { kind, text: area.value, task: area.dataset.task || null }));
+      form.reset(); delete area.dataset.task;
+    } else if (form.dataset.answer) {
+      toast(await post(`/api/questions/${form.dataset.answer}/answer`, { text: form.text.value }));
+    } else if (form.dataset.review) {
+      toast(await post(`/api/tasks/${form.dataset.review}/reject`, { reason: form.reason.value }));
+    }
+    await load();
+  } catch (error) {
+    toast(error.message);
+  } finally {
+    if (button) button.disabled = false;
+  }
+});
+
+load();
+setInterval(() => {
+  // không làm mới khi người dùng đang gõ, tránh mất chữ
+  const active = document.activeElement;
+  if (active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA") && active.value) return;
+  if (document.getElementById("task-dialog").open) return;
+  load();
+}, 5000);
+</script>
+</body>
+</html>

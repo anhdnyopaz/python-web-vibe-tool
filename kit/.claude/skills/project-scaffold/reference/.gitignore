@@ -1,0 +1,26 @@
+# bí mật & môi trường
+.env
+.env.*
+!.env.example
+.deploy/
+# python
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.import_linter_cache/
+.coverage
+htmlcov/
+.venv/
+# node / next
+node_modules/
+.next/
+next-env.d.ts
+*.tsbuildinfo
+coverage/
+# test output
+test-results/
+playwright-report/
+blob-report/
+# hệ điều hành
+.DS_Store

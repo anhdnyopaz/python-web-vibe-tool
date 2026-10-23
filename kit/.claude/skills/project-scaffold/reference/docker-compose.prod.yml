@@ -1,0 +1,92 @@
+# PRODUCTION — dùng cho cả VPS (kèm deploy/vps/compose.vps.yml) và Cloudflare Tunnel (profile "tunnel").
+# Biến môi trường lấy từ file .env.prod (không bao giờ commit).
+name: ${APP_SLUG:?Thiếu APP_SLUG trong .env.prod}
+
+services:
+  traefik:
+    image: traefik:v3.7
+    restart: unless-stopped
+    command:
+      - --entrypoints.web.address=:80
+      - --entrypoints.web.forwardedHeaders.insecure=true # chỉ nhận traffic từ NPM/cloudflared trong mạng nội bộ
+      - --providers.file.filename=/etc/traefik/dynamic.yml
+      - --log.level=WARN
+      - --accesslog=true
+    ports:
+      - "127.0.0.1:${APP_PORT:-8080}:80" # chỉ mở cho chính máy chủ (kiểm tra nhanh), không ra Internet
+    volumes:
+      - ./traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_started
+
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Thiếu POSTGRES_PASSWORD}
+      POSTGRES_DB: app
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d app"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:8-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  backend:
+    build:
+      context: ./backend
+      target: prod
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql+psycopg://app:${POSTGRES_PASSWORD}@db:5432/app
+      REDIS_URL: redis://redis:6379/0
+      ENVIRONMENT: production
+      APP_NAME: ${APP_SLUG}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+
+  frontend:
+    build:
+      context: ./frontend
+      target: prod
+    restart: unless-stopped
+
+  cloudflared:
+    image: cloudflare/cloudflared:2026.10.3
+    profiles: ["tunnel"]
+    restart: unless-stopped
+    command: ["tunnel", "--no-autoupdate", "run"]
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:-}
+    depends_on:
+      - traefik
+
+volumes:
+  pgdata:
+  redisdata:

@@ -1,0 +1,58 @@
+# Luật kiến trúc Hexagonal — kiểm tra bằng `lint-imports` (nằm trong `make lint`).
+# KHÔNG nới lỏng file này để code "qua lint". Muốn đổi luật phải có ADR.
+[importlinter]
+root_package = app
+include_external_packages = True
+
+[importlinter:contract:layers]
+name = Thứ tự tầng: controllers -> usecases -> modules -> shared -> core
+type = layers
+layers =
+    app.controllers
+    app.usecases
+    app.modules
+    app.shared
+    app.core
+
+[importlinter:contract:controllers-only-usecases]
+name = Controller chỉ được biết usecase (không gọi thẳng module/shared)
+type = forbidden
+source_modules = app.controllers
+forbidden_modules =
+    app.modules
+    app.shared
+    app.container
+    sqlalchemy
+    redis
+
+[importlinter:contract:usecases-pure]
+name = Usecase không phụ thuộc framework/hạ tầng
+type = forbidden
+source_modules = app.usecases
+forbidden_modules =
+    fastapi
+    sqlalchemy
+    redis
+    app.container
+    app.modules.*.repository
+    app.shared.redis_cache
+    app.shared.sql_database_health
+
+[importlinter:contract:services-pure]
+name = Service/entity/interface của module không dùng framework/DB
+type = forbidden
+source_modules =
+    app.modules.*.service
+    app.modules.*.entity
+    app.modules.*.interfaces
+forbidden_modules =
+    fastapi
+    sqlalchemy
+    redis
+    app.modules.*.repository
+
+[importlinter:contract:modules-independent]
+name = Các module độc lập với nhau (phối hợp nhiều module thì làm ở usecase)
+type = independence
+modules =
+    app.modules.*
